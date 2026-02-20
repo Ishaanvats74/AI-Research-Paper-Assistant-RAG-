@@ -2,7 +2,7 @@ export async function POST(req: Request) {
 
   const body = await req.json();
 
-  const res = await fetch("http://localhost:8000/chat", {
+  const res = await fetch("https://ai-research-paper-assistant-rag.onrender.com/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"

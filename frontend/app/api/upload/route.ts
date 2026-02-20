@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const pdfUrl = await uploadFile(file);
 
   // send url to fastapi
-  await fetch("http://localhost:8000/ingest", {
+  await fetch("https://ai-research-paper-assistant-rag.onrender.com/ingest", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
