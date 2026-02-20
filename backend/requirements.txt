@@ -9,3 +9,4 @@ faiss-cpu
 pymupdf
 chromadb 
 python-dotenv
+langchain-chroma
