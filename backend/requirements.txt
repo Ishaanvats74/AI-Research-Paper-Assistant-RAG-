@@ -1,8 +1,11 @@
 fastapi[standard]
 langchain
 langchain[google-genai]
+langchain_ollama
 langchain-community
 pypdf
 langchain-text-splitters
 faiss-cpu
 pymupdf
+chromadb 
+python-dotenv

@@ -11,18 +11,17 @@ def format_docs(retriever_docs):
     context = "\n".join([doc.page_content for doc in retriever_docs])
     return context
 
+
 embeddings = OllamaEmbeddings(model="qwen3-embedding:0.6b")
-
-
 file_path="Computer Networks - A Tanenbaum - 5th edition.pdf"
 loader = PyMuPDFLoader(file_path)
 docs = loader.load()
-
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=200)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
 chunks = text_splitter.split_documents(docs)
-
-
 vector_store = FAISS.from_documents(embedding=embeddings,documents=chunks)
+
+
+
 
 retriever = vector_store.as_retriever(search_type="similarity",search_kwargs={"k":10})
 
