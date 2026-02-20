@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_ollama import OllamaEmbeddings, ChatOllama
@@ -7,9 +7,15 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.documents import Document
 from dotenv import load_dotenv
-import shutil
+from pydantic import BaseModel
 import chromadb
+import fitz
+import requests
+import tempfile
+import os
+
 load_dotenv()
 
 app = FastAPI()
@@ -26,9 +32,8 @@ llm = ChatOllama(model="llama3.1:8b")
 
 client = chromadb.Client()
 
-UPLOAD_PATH = "uploaded.pdf"
-
-retriever = None
+class PdfRequest(BaseModel):
+    pdf_url: str
 
 def reset_collection(collection_name="pdf_collection"):
     try:
@@ -40,26 +45,68 @@ def reset_collection(collection_name="pdf_collection"):
 def format_docs(retriever_docs):
     return "\n".join([doc.page_content for doc in retriever_docs])
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+@app.post("/ingest")
+def ingest_pdf(data: PdfRequest):
 
+    pdf_url = data.pdf_url
 
-@app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    
-    with open(UPLOAD_PATH, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    head = requests.head(pdf_url)
+    file_size = int(head.headers.get("content-length", 0))
 
-    loader = PyMuPDFLoader(UPLOAD_PATH)
-    docs = loader.load()
+    print("PDF SIZE:", file_size / (1024*1024), "MB")
+
+    temp_path = None
+
+    if file_size < 40 * 1024 * 1024:
+
+        print("Loading PDF into RAM")
+
+        response = requests.get(pdf_url)
+        pdf_bytes = response.content
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    else:
+
+        print("Downloading PDF to Disk")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+
+            response = requests.get(pdf_url, stream=True)
+
+            for chunk in response.iter_content(1024 * 1024):
+                tmp.write(chunk)
+
+            temp_path = tmp.name
+
+        doc = fitz.open(temp_path)
+
+    pdf_metadata = doc.metadata
+    documents = []
+
+    for i, page in enumerate(doc):
+
+        text = page.get_text()
+
+        documents.append(
+            Document(
+                page_content=text,
+                metadata={
+                    "page": i+1,
+                    "total_pages": len(doc),
+                    "source": pdf_url,
+                    "author": pdf_metadata.get("author"),
+                    "title": pdf_metadata.get("title")
+                }
+            )
+        )
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=200
     )
 
-    chunks = splitter.split_documents(docs)
+    chunks = splitter.split_documents(documents)
 
     reset_collection("pdf_collection")
 
@@ -69,18 +116,18 @@ async def upload_pdf(file: UploadFile = File(...)):
         embedding=embeddings,
         client=client
     )
-    
+
+    if temp_path:
+        os.remove(temp_path)
 
     return {"message": "PDF Indexed Successfully"}
-
-
-
 
 @app.post("/chat")
 async def chat(question: dict):
 
     vector_store = Chroma(
         collection_name="pdf_collection",
+        embedding_function=embeddings,
         client=client
     )
 
@@ -91,16 +138,16 @@ async def chat(question: dict):
 
     prompt = PromptTemplate(
         template="""
-            Use ONLY the provided context to answer the question.
+        Use ONLY the provided context to answer the question.
 
-            Context:
-            {context}
+        Context:
+        {context}
 
-            Question:
-            {question}
+        Question:
+        {question}
 
-            Answer:
-            """,
+        Answer:
+        """,
         input_variables=["context","question"]
     )
 
@@ -118,4 +165,6 @@ async def chat(question: dict):
     return {"answer": answer}
 
 
-
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
