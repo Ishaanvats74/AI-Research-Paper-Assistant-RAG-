@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_ollama import OllamaEmbeddings, ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
@@ -45,6 +46,7 @@ def reset_collection(collection_name="pdf_collection"):
 def format_docs(retriever_docs):
     return "\n".join([doc.page_content for doc in retriever_docs])
 
+
 @app.post("/ingest")
 def ingest_pdf(data: PdfRequest):
 
@@ -57,7 +59,7 @@ def ingest_pdf(data: PdfRequest):
 
     temp_path = None
 
-    if file_size < 40 * 1024 * 1024:
+    if file_size < 20 * 1024 * 1024:
 
         print("Loading PDF into RAM")
 
@@ -138,15 +140,26 @@ async def chat(question: dict):
 
     prompt = PromptTemplate(
         template="""
-        Use ONLY the provided context to answer the question.
+            You are an AI Research Assistant.
 
-        Context:
-        {context}
+            Your task is to answer the user's question strictly using ONLY the information provided in the context below.
 
-        Question:
-        {question}
+            Guidelines:
+            - Do NOT use your own knowledge.
+            - Do NOT make assumptions.
+            - If the answer is not clearly present in the context, say:
+            "The answer is not available in the provided document."
+            - Do NOT fabricate or hallucinate any information.
+            - Be concise and accurate.
+            - Quote relevant facts from the context when possible.
 
-        Answer:
+            Context:
+            {context}
+
+            Question:
+            {question}
+
+            Answer:
         """,
         input_variables=["context","question"]
     )
