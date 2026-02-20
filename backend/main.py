@@ -28,8 +28,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-embeddings = OllamaEmbeddings(model="qwen3-embedding:0.6b")
-llm = ChatOllama(model="llama3.1:8b")
+# embeddings = OllamaEmbeddings(model="qwen3-embedding:0.6b")
+# llm = ChatOllama(model="llama3.1:8b")
+embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+llm = ChatGoogleGenerativeAI(model="gemini-3-flash")
 
 client = chromadb.Client()
 
