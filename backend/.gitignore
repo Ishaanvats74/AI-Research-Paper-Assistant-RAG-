@@ -1,2 +1,14 @@
-venv
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment files
+.env
 .env*
+.env
+env/
+venv/
+
+# OS
+.DS_Store
